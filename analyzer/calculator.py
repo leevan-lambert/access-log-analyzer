@@ -9,19 +9,25 @@ Rate Limiting Systems:
 2. Burst rate limits (per second): Max requests/second per endpoint
 3. Per-issue write limits: Max writes per issue per time window
 
-Points System:
+Points System (base cost of 1 point per request, plus per-object cost on reads):
 - Base cost: 1 point per request
-- Read operations: 1 base + (objects returned × cost per object type)
-  - Issues: 1 point each
-  - Users/Group members: 2 points each
-  - Comments, worklogs, etc: 1 point each
-- Write operations: 1 point flat (regardless of object type)
+- Read operations (GET / query): 1 base + (objects returned × cost per object type)
+  - Core domain objects (issues, projects, dashboards, attachments): 1 point each
+  - Identity & access objects (users, groups, roles, permissions):   2 points each
+- Write operations (POST/PUT/PATCH/DELETE / mutation): 1 point flat (base cost only)
 
-Cloud Quota Limits (enforced from March 2, 2026):
-- Standard plan:  ~10,000 points/hour
-- Premium plan:   ~50,000 points/hour  
-- Enterprise:     ~250,000 points/hour
-(We use the most restrictive Standard limit as a conservative baseline)
+Cloud Quota Limits (points-based quotas enforced from March 2, 2026), measured in
+points per hour, reset at the top of each UTC hour. Quota depends on tier + edition:
+- Tier 1 – Global Pool (default): single shared 65,000 points/hour across all tenants.
+- Tier 2 – Per-Tenant Pool (high-usage apps, after Atlassian review), per tenant:
+    - Free:       65,000 points/hour
+    - Standard:   100,000 + (10 × users) points/hour
+    - Premium:    130,000 + (20 × users) points/hour
+    - Enterprise: 150,000 + (30 × users) points/hour
+  Tier 2 per-tenant quotas are capped at 500,000 points/hour.
+
+When no user count is supplied, we default to the Tier 1 Global Pool (65,000/hour)
+as a conservative baseline; supplying --users switches to the Tier 2 formula.
 """
 
 import re
@@ -80,16 +86,29 @@ def calculate_quota(plan: str, user_count: int = 0) -> int:
     return min(quota, TIER2_CAP)
 
 # ---------------------------------------------------------------------------
-# Burst rate limits (requests per second) — approximate steady-state values
-# from Atlassian documentation
+# Burst rate limits (requests per second)
+#
+# CAVEAT: Atlassian's rate limiting documentation describes burst (per-second)
+# limits conceptually — "stay within the steady-state request limits; occasional
+# spikes ... may be tolerated ... due to a burst buffer" — but does NOT publish
+# exact per-endpoint steady-state RPS or token-bucket sizes. The values below are
+# therefore heuristic estimates used to surface likely burst risks, not official
+# Atlassian figures. Treat flagged endpoints as candidates for review, not as a
+# definitive breach determination.
+# Source: https://developer.atlassian.com/cloud/jira/platform/rate-limiting/
 # ---------------------------------------------------------------------------
-BURST_STEADY_STATE_RPS = 10  # requests per second per endpoint (steady-state)
-BURST_BUCKET_SIZE = 100       # token bucket max size
+BURST_STEADY_STATE_RPS = 10  # requests per second per endpoint (steady-state) — heuristic estimate
+BURST_BUCKET_SIZE = 100       # token bucket max size — heuristic estimate
 
 # ---------------------------------------------------------------------------
 # Per-issue write limit
+#
+# CAVEAT: Atlassian documents per-issue write limits conceptually ("restricts how
+# frequently you can modify a single issue") but does NOT publish the exact
+# threshold. The value below is a heuristic estimate, not an official figure.
+# Source: https://developer.atlassian.com/cloud/jira/platform/rate-limiting/
 # ---------------------------------------------------------------------------
-PER_ISSUE_WRITE_LIMIT = 10    # max writes per issue per minute
+PER_ISSUE_WRITE_LIMIT = 10    # max writes per issue per minute — heuristic estimate
 
 # ---------------------------------------------------------------------------
 # Endpoint pattern → point cost rules

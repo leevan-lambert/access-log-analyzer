@@ -12,14 +12,23 @@ When migrating from Jira/Confluence Data Center to Atlassian Cloud, your instanc
 
 ## Atlassian Cloud Rate Limits
 
-Based on [Atlassian's rate limiting documentation](https://developer.atlassian.com/cloud/jira/platform/rate-limiting/):
+Based on [Atlassian's rate limiting documentation](https://developer.atlassian.com/cloud/jira/platform/rate-limiting/) (points-based quotas enforced from **March 2, 2026**). All quotas are measured in **points per hour** and reset at the top of each UTC hour. Your hourly quota depends on your rate limit **tier** and, for Tier 2, your customer edition and user count.
 
-| Plan | Points/Hour |
+**Tier 1 — Global Pool (default for most apps):** a single shared quota of **65,000 points/hour** across all tenants.
+
+**Tier 2 — Per-Tenant Pool (apps with sustained high usage, after Atlassian review):** a separate quota per tenant, based on edition and licensed user count, capped at **500,000 points/hour**.
+
+| Tier / Edition | Points/Hour |
 |------|------------|
-| Standard | 10,000 |
-| Premium | 50,000 |
-| Enterprise | 250,000 |
-| Enterprise (large org) | 500,000 |
+| Tier 1 — Global Pool (default) | 65,000 (shared across all tenants) |
+| Tier 2 — Free | 65,000 |
+| Tier 2 — Standard | 100,000 + (10 × users) |
+| Tier 2 — Premium | 130,000 + (20 × users) |
+| Tier 2 — Enterprise | 150,000 + (30 × users) |
+
+> Tier 2 per-tenant quotas are capped at 500,000 points/hour for Standard, Premium, and Enterprise editions.
+>
+> **Points cost model:** every request costs **1 base point**. Read (`GET`/query) requests add points per object returned — **1 point** per core object (issues, projects, dashboards, attachments) and **2 points** per identity/access object (users, groups, roles, permissions). Write requests (`POST`/`PUT`/`PATCH`/`DELETE`/mutation) are charged the base cost only (1 point, no per-object cost).
 
 ## Installation
 
